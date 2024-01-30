@@ -1,0 +1,152 @@
+---
+title: "Untitled"
+author: "Justin Kaiser"
+date: "2023-02-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#1
+n = 300
+set.seed(1)
+x <- sort(runif(n)*2*pi)
+y <- sin(x) + rnorm(n)/4
+data <- data.frame(y = y, x = x)
+plot(x, y, col = "pink")
+```
+
+```{r}
+#2
+model1 <- loess(y ~ x, degree=0, span = 0.5) #Locally quadratic
+model2 <- loess(y ~ x, degree=1, span = 0.5) #Locally quadratic
+model3 <- loess(y ~ x, degree=2, span = 0.5) #Locally quadratic
+
+fit1 <- predict(model1, x)
+fit2 <- predict(model2, x)
+fit3 <- predict(model3, x)
+
+plot(x, y, col = "gray", cex.main = 0.80, cex.axis = 0.75)
+
+lines(x, fit1, col = "blue")
+lines(x, fit2, col = "red")
+lines(x, fit3, col = "purple")
+```
+
+```{r}
+#3
+model2 <- predict(loess(y~x, degree=1, span = 0.38))
+model3 <- predict(loess(y~x, degree=2, span = 0.1))
+model4 <- predict(loess(y~x, degree=2, span = 2))
+model5 <- predict(loess(y~x, degree=1, span = 0.02))
+
+plot(x, y, col = "gray", cex.main = 0.80, cex.axis = 0.75)
+
+lines(x, model2, lwd = 2, col = "green")
+lines(x, model3, lwd = 2, col = "red")
+lines(x, model4, lwd = 2, col = "blue")
+lines(x, model5, lwd = 2, col = "pink")
+```
+
+```{r}
+#4
+library(splines)
+model1 <- lm(y ~ bs(x, degree = 10, df=10))
+plot(x, y, col ="gray")
+lines(x, model1$fitted.values, lwd = 2, col ="red")
+```
+```{r}
+#5
+n = 300
+x <- sort(runif(n)*2*pi)
+y <- sin(x) + rnorm(n)/4
+plot(x, y, col ="gray")
+lines(smooth.spline(x, y, df=100), lwd = 2, col ="red")
+lines(smooth.spline(x, y), lwd = 2, col ="blue")
+```
+```{r}
+n = 1000 # pay attention to n here
+set.seed(1)
+x <- sort(runif(n)*2*pi)
+y <- sin(x) + rnorm(n)/4
+df <- data.frame(y, x)
+plot(x, y, col = "gray")
+
+loe1 <- loess(y ~ x, degree = 2, span = 0.02)
+yhat1 <- predict(loe1, x)
+loe2 <- loess(y ~ x, degree = 2, span = 0.5)
+yhat2 <- predict(loe2, x)
+loe3 <- loess(y ~ x, degree = 2, span = 3)
+yhat3 <- predict(loe3, x)
+plot(x, y, col = "gray")
+lines(x, yhat1, col = "red", lwd = 2)
+lines(x, yhat2, col = "blue", lwd = 2)
+lines(x, yhat3, col = "green", lwd = 2)
+
+```
+
+```{r}
+# My data
+n = 1000
+set.seed(1)
+x <- sort(runif(n)*2*pi)
+y <- sin(x) + rnorm(n)/4
+df <- data.frame(y, x)
+#Shuffle
+n <- nrow(df)
+set.seed(321)
+ind <- sample(n, n, replace = FALSE)
+df1 <- df[ind, ]
+
+k = 10
+nslice = floor(n/k)
+test <- df1[1:nslice, ] #10% of df1
+train <- df1[(nslice+1):n, ] #90% of df1
+
+loe0 <- loess(y ~ x, degree = 2, span = 0.02, data = train,
+control=loess.control(surface="direct"))
+loe1 <- loess(y ~ x, degree = 2, span = 0.2, data = train,
+control=loess.control(surface="direct"))
+loe2 <- loess(y ~ x, degree = 2, span = 1, data = train,
+control=loess.control(surface="direct"))
+
+#train data
+yhat0 <- predict(loe0, train$x)
+yhat1 <- predict(loe1, train$x)
+yhat2 <- predict(loe2, train$x)
+rmspe0 <- sqrt(mean((train$y-yhat0)^2))
+rmspe1 <- sqrt(mean((train$y-yhat1)^2))
+rmspe2 <- sqrt(mean((train$y-yhat2)^2))
+rmspe0
+## [1] 0.2293857
+rmspe1
+## [1] 0.2558262
+rmspe2
+## [1] 0.3224798
+
+#test data
+yhat0test <- predict(loe0, test$x)
+yhat1test <- predict(loe1, test$x)
+yhat2test <- predict(loe2, test$x)
+
+rmspe0test <- sqrt(mean((test$y-yhat0test)^2))
+rmspe1test <- sqrt(mean((test$y-yhat1test)^2))
+rmspe2test <- sqrt(mean((test$y-yhat2test)^2))
+rmspe0test
+## [1] 0.2839419
+rmspe1test
+## [1] 0.2531866
+rmspe2test
+## [1] 0.2890831
+```
+
+```{r}
+
+
+```
+
+
+

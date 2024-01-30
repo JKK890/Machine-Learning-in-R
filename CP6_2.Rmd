@@ -1,0 +1,64 @@
+---
+title: "new"
+author: "Justin Kaiser"
+date: "2023-02-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+n = 1000 # pay attention to n here
+set.seed(1)
+x <- sort(runif(n)*2*pi)
+y <- sin(x) + rnorm(n)/4
+df <- data.frame(y, x)
+#plot(x, y, col = "gray")
+
+## SHUFFLE
+n <- nrow(df)
+ind <- sample(n,n)
+df1 <- df[ind,]
+
+# slice to 10 peices
+k <- 10
+nslice <- floor(n/k)
+
+#0.02,0.06...
+grid <- seq(0.02, 1, 0.04)
+bestSpan <- c()
+minRMSPE <- c()
+
+
+for(i in 1:k){
+  ind_val <- ind[((i-1)*nslice+1):(i*nslice)]
+  val <- df1[ind_val,]
+  train <- df1 <- df1[-ind_val,]
+  RMSPE1 <- c()
+  for (j in 1:length(grid)) {
+    cat("loops", i, j, "\r")
+    
+  fitGood <- loess(y ~ x, 
+              degree = 2, 
+              span = grid[j], 
+              data = train, 
+              control = loess.control(surface = "direct"))
+  
+  yhatGood <- predict(fitGood,val$x)
+  
+  RMSPE1[j] <- sqrt(mean((val$y - yhatGood)^2))
+  }
+  
+  minRMSPE[i] <- min(RMSPE1)
+  bestSpan[i] <- grid[which.min(RMSPE1)]
+}
+
+(data.frame(span = bestSpan, rmspe = minRMSPE))
+#see BS in CP6
+
+
+
+```

@@ -1,0 +1,121 @@
+---
+title: "CP10"
+author: "Justin Kaiser"
+date: "2023-03-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(randomForest)
+library(rpart)
+library(ISLR)
+
+# Data
+set.seed(123)
+remove(list = ls())
+data(Hitters)
+df <- Hitters[complete.cases(Hitters$Salary), ]
+df$logsal <- log(df$Salary)
+df <- df[, -19]
+
+ind <- sample(nrow(df), nrow(df), replace = TRUE)
+train <- df[ind, ]
+test <- df[-ind, ]
+
+p = ncol(train)-1
+B <- 2500
+RMSPE0 <- c()
+RMSPE1 <- c()
+RMSPE2 <- c()
+RMSPE3 <- c()
+
+model0 <- lm(logsal ~ ., data = train)
+model1 <- rpart(logsal~., data =train) # Single Tree
+model2 <- randomForest(logsal~., ntree = B, mtry = p, data = train) #Bagged
+model3 <- randomForest(logsal~., ntree = B, data = train, maxnodes = 200) # RF
+
+yhat0 <- predict(model0, test)
+yhat1 <- predict(model1, test)
+yhat2 <- predict(model2, test)
+yhat3 <- predict(model3, test)
+
+RMSPE0[1] <- sqrt(mean((test$logsal - yhat0)^2))
+RMSPE1[1] <- sqrt(mean((test$logsal - yhat1)^2))
+RMSPE2[1] <- sqrt(mean((test$logsal - yhat2)^2))
+RMSPE3[1] <- sqrt(mean((test$logsal - yhat3)^2))
+
+```
+
+```{r}
+#setup
+library(PASWR)
+library(ROCR)
+library(rpart)
+remove(list = ls()) #removes environment
+data(titanic3)
+str(titanic3)
+varIND <- c("survived", "sex", "age", "pclass", "sibsp", "parch")
+d <- titanic3[,varIND]
+d$survived <- as.factor(d$survived)
+df <- d[complete.cases(d),]
+
+#variable and container initialazation
+n = 500
+B = 500
+auc_rpart <- c()
+auc_BAG <- c()
+auc_RF <- c()
+
+#for loop that loops n times 
+for (i in 1:n) {
+  ind <- sample(nrow(df), nrow(df), replace = TRUE)
+  train <- df[ind,]
+  test <- df[-ind,]
+  
+  p = ncol(train) - 1
+  
+  #modeling
+  model_rpart <- rpart(survived ~ sex + age + pclass + sibsp + parch,
+                       data = train,
+                       method = "class")
+  model_BAG <- randomForest(survived ~ sex + age + pclass + sibsp + parch,
+                            ntree = B,
+                            mtry = p,
+                            data = train)
+  model_RF <- randomForest(survived ~ sex + age + pclass + sibsp + parch,
+                            ntree = B,
+                            data = train)
+  
+  #predictions
+  phat_rpart <- predict(model_rpart, test, type = "prob")
+  phat_BAG <- predict(model_BAG, test, type = "prob")
+  phat_RF <- predict(model_RF, test, type = "prob")
+    
+  #AUC
+  pred_rocr_rpart <- prediction(phat_rpart[,2], test$survived)
+  pred_rocr_BAG <- prediction(phat_BAG[,2], test$survived)
+  pred_rocr_RF <- prediction(phat_RF[,2], test$survived)
+  
+  auc_rocr_rpart <- performance(pred_rocr_rpart, measure = "auc")
+  auc_rocr_BAG <- performance(pred_rocr_BAG, measure = "auc")
+  auc_rocr_RF <- performance(pred_rocr_RF, measure = "auc")
+  
+  auc_rpart[i] <- auc_rocr_rpart@y.values[[1]]
+  auc_BAG[i] <- auc_rocr_BAG@y.values[[1]]
+  auc_RF[i] <- auc_rocr_RF@y.values[[1]]
+}  
+  #means of the aucs
+  mean(auc_rpart)
+  mean(auc_BAG)
+  mean(auc_RF)
+  
+  #standard deviations of the aucs
+  sd(auc_rpart)
+  sd(auc_BAG)
+  sd(auc_RF)
+
+```

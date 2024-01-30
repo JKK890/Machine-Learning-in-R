@@ -1,0 +1,162 @@
+---
+title: "A5"
+author: "Justin Kaiser"
+date: "2023-03-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# load the data
+library(PASWR)
+library(rpart)
+library(ROCR)
+data(titanic3)
+str(titanic3)
+
+#making df so we don't use the source of the data
+df <- titanic3
+
+#check for NA's
+colSums(is.na(df))
+
+#get rid of df$body since there is too many NA's in that column
+df <- df[,-13]
+
+#gets rid of the remaining NA's
+df <- na.omit(df)
+
+#make survived is a factor variable
+df$survived <- as.factor(df$survived)
+
+#------------------------------------------------------------------------------
+#LPM
+
+#container initialization
+auc_container_LPM <- c()
+
+for(i in 1:100){
+  #split train data test data
+  ind_LPM <- sample(nrow(df), nrow(df), replace = TRUE)
+  train_LPM <- df[ind_LPM,]
+  test_LPM <- df[-ind_LPM,]
+
+  #train model and predict phat
+  model_LPM <- glm(survived ~ pclass + sex + age + sibsp + parch,
+                   data = train_LPM,
+                   family = binomial())
+  phat_LPM <- predict(model_LPM, newdata = test_LPM, type = "response")
+  
+  #get the AUC 
+  pred_rocr_LPM <- prediction(phat_LPM, test_LPM$survived)
+  auc_ROCR_LPM <- performance(pred_rocr_LPM, measure = "auc")
+
+  #store the AUC's in the vector
+  auc_container_LPM[i] <- auc_ROCR_LPM@y.values[[1]]
+}
+
+#------------------------------------------------------------------------------
+#CART
+
+#container initialization
+auc_container_CART <- c()
+
+for(i in 1:100){
+  #split the data
+  ind_CART <- sample(nrow(df), nrow(df), replace = TRUE)
+  train_CART <- df[ind_CART,]
+  test_CART <- df[-ind_CART,]
+  
+  #model creation
+  model_CART <- rpart(survived ~ sex + age + pclass + sibsp + parch,
+          data = train_CART,
+          method = "class")
+  
+  #predict the model
+  phat_CART <- predict(model_CART, test_CART, type = "prob")
+  
+  #AUC
+  pred_rocr_CART <- prediction(phat_CART[, 2], test_CART$survived)
+  auc_ROCR_CART <- performance(pred_rocr_CART, measure = "auc")
+  
+  #store the AUC's in the vector
+  auc_container_CART[i] <- auc_ROCR_CART@y.values[[1]]
+}
+
+#------------------------------------------------------------------------------
+#Bagging
+
+#split the data (Because there is a area areas before the loop that depend on 
+#the test_BAG_1 & train_BAG containers)
+ind_BAG_1 <- sample(nrow(titanic3), nrow(titanic3), replace = TRUE)
+train_BAG_1 <- df[ind_BAG_1, ]
+test_BAG <- df[-ind_BAG_1, ]
+
+#number of trees
+B = 100
+
+#Matrix initialization
+phat_BAG <- matrix(0, B, nrow(test_BAG))
+
+#container initialization
+auc_container_BAG <- c()
+
+# Loops
+for(i in 1:B){  
+  #the seed will change every loop
+  set.seed(i)
+  
+  #data splitting
+  ind_BAG_2 <- sample(nrow(train_BAG_1), nrow(train_BAG_1), replace = TRUE)
+  train_BAG_2 <- df[ind_BAG_2, ]
+
+  #model creation
+  model_BAG <- rpart(survived ~ sex + age + pclass + sibsp + parch,
+                cp = 0, data = train_BAG_2, method = "class")
+  #predicting phats
+  phat_BAG[i,] <- predict(model_BAG, test_BAG, type = "prob")[, 2]
+
+  #taking the average
+  phat_BAG_avg <- colMeans(phat_BAG)
+
+  #AUC
+  pred_rocr_BAG <- prediction(phat_BAG_avg, test_BAG$survived)
+  auc_ROCR_BAG <- performance(pred_rocr_BAG, measure = "auc")
+  auc_container_BAG[i] <- auc_ROCR_BAG@y.values[[1]]
+}
+
+#plotting the AUCs, & plotting the mean line of each model
+hist(auc_container_LPM, main = "Histogram of AUC values given by LPM",
+     xlab = "AUC",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(auc_container_LPM), col = "blue", lwd = 2, lty = 2)
+
+hist(auc_container_CART, main = "Histogram of AUC values given by CART",
+     xlab = "AUC",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(auc_container_CART), col = "blue", lwd = 2, lty = 2)
+
+hist(auc_container_BAG, main = "Histogram of AUC values given by Bagging",
+     xlab = "AUC",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(auc_container_BAG), col = "blue", lwd = 2, lty = 2)
+
+#calculate the mean and the standard deviation of all the models
+mean(auc_container_LPM)
+sd(auc_container_LPM)
+mean(auc_container_CART)
+sd(auc_container_CART)
+mean(auc_container_BAG)
+sd(auc_container_BAG)
+
+```
+as we can see Bagging is the best because of its high AUC & it's small SD

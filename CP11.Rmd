@@ -1,0 +1,67 @@
+---
+title: "CP11"
+author: "Justin Kaiser"
+date: "2023-03-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rpart)
+
+#simulated data
+n = 300
+set.seed(1)
+x <- sort(runif(n)*2*pi)
+y <- sin(x) + rnorm(n)/4
+df <- data.frame(x,y)
+plot(x,y, col = "aquamarine")
+h = 1.8 #learning rate
+
+##### Step 1 #####
+
+#model & prediction
+model <- rpart(y ~ x, data = df)
+yhat <- predict(model)
+
+#plotting the boosted prediction
+#plot(df$x, df$y, col = "orange")
+#lines(df$x, yhat, type = "s", col = "blue", lwd = 2)
+
+#find error
+yr <- df$y - h * yhat
+df$yr <- yr
+
+##### All other steps #####
+
+YP <- h * yhat
+
+for(i in 1:1000){
+  model <- rpart(yr ~ x, data = df)
+  ehat <- predict(model, df)
+  
+  YP <- cbind(YP, h * ehat)
+  
+  df$yr <- df$yr - h * ehat
+}
+
+#plotting
+viz <- function(M) {
+  #boosting
+  yhat <- apply(YP[,1:M], 1, sum)
+  
+  plot(df$x, df$y, col = "magenta")
+  lines(df$x, yhat, type = "s", col = "cyan", lwd = 3)
+  
+  model <- rpart(y ~ x, data = df)
+  yhat <- predict(model)
+  lines(df$x, yhat, col = "black", lwd = 3)
+  
+  
+}
+
+#see book (13.1) gradient boosting (GBM)
+```

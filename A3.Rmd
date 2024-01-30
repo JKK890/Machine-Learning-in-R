@@ -1,0 +1,112 @@
+---
+title: "A03"
+author: "Justin Kaiser"
+date: "2023-02-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(kernlab)
+data("spam")
+str(spam)
+
+spamData <- spam[spam$type == "spam",]
+nonSpamData <- spam[spam$type == "nonspam",]
+
+spamMean <- c(colMeans(spamData[, -length(spam)]))
+nonSpamMean <- c(colMeans(nonSpamData[, -length(spam)]))
+
+mean_difference <- spamMean - nonSpamMean
+
+table <- data.frame(Feature = colnames(spamData[, -length(spam)]),
+                    Mean_Difference = mean_difference)
+
+table <- table[order(table$Mean_Difference, decreasing = TRUE),]
+
+barplot(table$Mean_Difference, names.arg = table$Feature, horiz = TRUE, 
+        las = 2, cex.names=0.5)
+
+head(table)
+
+```
+
+```{r}
+rm(list = ls())
+library(kernlab)
+library(caret)
+data("spam")
+df <- spam
+dfs <- scale(df[, -58])
+dfs <- data.frame(dfs, type = df$type)
+best_threshold <- c()
+best_acc <- c() 
+
+propTrain <- 0.8
+for(i in 1:100){
+  train_index <- sample(nrow(spam), floor(propTrain*nrow(spam)))
+  train <- spam[train_index,]
+  test <- spam[-train_index,]
+  train$type <- ifelse(train$type == "spam", 1, 0)
+  test$type <- ifelse(test$type == "spam", 1, 0)
+
+  model <- lm(train$type ~ ., data = train)
+
+  grid <- seq(0.4, 0.80, 0.02)
+  acc <- numeric(length(grid))
+
+  for (j in seq_along(grid)) {
+    yhat <- predict(model, test) >= grid[j]
+    acc[j] <- mean(yhat == test$type)
+  }
+
+  best_threshold[i] <- grid[which.max(acc)]
+  best_acc[i] <- max(acc)
+  mean_acc <- mean(best_acc)
+}
+SDLPM <- sd(best_acc)
+plot(best_acc, xlab = "Split", ylab = "Accuracy",
+     main = "Accuracy of LPM on 100 random splits")
+abline(h = mean_acc, col = "red", lty = "dashed")
+
+#KNN
+
+k <- seq(from = 1, to = 20, by = 1)
+th <- seq(0.3, 0.80, 0.02)
+
+bestThs <- c()
+bestKs <- c()
+bestACC <- c()
+
+for (i in 1:100) {
+  ind <- unique(sample(nrow(df), replace = TRUE))
+  train <- dfs[ind,]
+  test <- dfs[-ind,]
+  for (j in 1:length(k)) {
+    knnModel <- knn3(type ~ ., data = train, k = k[j])
+    phat <- predict(knnModel, newdata = test, type = "prob")
+    ACC <- c()
+    for (l in 1:length(th)) {
+      yhat <- phat[,2] > th[l]
+      cTable <- table(yhat,test$type)
+      ACC[l] <- sum(diag(cTable))/sum(cTable)
+    }
+  bestThs[i] <- th[which.max(ACC)]
+  bestKs[i] <- k[which.max(ACC)] 
+  bestACC[i] <- max(ACC)
+  }
+}
+SDKNN <- sd(bestACC/sqrt(length(bestACC)))
+AvgACC <- mean(bestACC)
+plot(bestACC, xlab = "Splits", ylab = "ACC's", main = "mean of ACC’s")
+abline(h = AvgACC, col = "red", lty = "dashed")
+
+print("LPM error:")
+print(SDLPM)
+print("KNN error:")
+print(SDKNN)
+```
+

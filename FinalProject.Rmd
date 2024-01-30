@@ -1,0 +1,301 @@
+---
+title: "Final Project"
+author: "Justin Kaiser"
+date: "2023-04-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+rm(list = ls())
+library(randomForest)
+library(ROCR)
+
+#------------------------------------------------------------------------------
+#Data preparation
+
+#import data
+df <- read.csv("C:/Users/justi/Documents/ECON 3838/Machine-Learning-in-R/bank.csv", sep=";")
+
+#make all char columns into factor columns
+df[sapply(df, is.character)] <- lapply(df[sapply(df, is.character)], as.factor)
+
+#change the yes and no to 1 and 0
+df$y <- ifelse(df$y == "yes", 1, 0)
+df$y = as.factor(df$y)
+
+
+for(i in 1:ncol(df)){
+  #sees if the column is a factor
+  if(class(df[,i]) == "factor"){
+      
+    #if it is a factor column it will remove all observations with less than 10
+    #occurrences
+    myTable <- table(df[,i])
+    print(myTable)
+    
+    #subset myTable to keep only factors with at least 10 occurrences 
+    #(there are none)
+    myTable <- myTable[myTable >= 10]
+  }
+}
+
+#checks for NA's (there are none)
+colSums(is.na(df))
+
+
+#------------------------------------------------------------------------------
+#LPM & RF
+
+#initialization
+auc_container_LPM <- c()
+auc_container_RF_test <- c()
+auc_container_RF_OOB <- c()
+n_runs = 5
+mean_var_imp <- matrix(data = 0, nrow = 16 , ncol = 1)
+n_classes <- length(unique(df$y))
+oob_conf <- matrix(0, nrow = 2, ncol = 3)
+
+#loop n_runs times
+for(i in 1:n_runs){
+  #split train data test data
+  ind <- sample(nrow(df), nrow(df), replace = TRUE)
+  train <- df[ind,]
+  test <- df[-ind,]
+  
+  #LPM
+  
+  #model & predict LPM
+  model_LPM <- glm(y ~ ., data = train, family = binomial())
+  phat_LPM <- predict(model_LPM, newdata = test, type = "response")
+  
+  #calculate AUC of LPM
+  pred_rocr_LPM <- prediction(phat_LPM, test$y)
+  auc_ROCR_LPM <- performance(pred_rocr_LPM, measure = "auc")
+  auc_container_LPM[i] <- auc_ROCR_LPM@y.values[[1]]
+  
+  #RF
+  
+  #model & predict RF
+  model_RF <- randomForest(y ~., data = train)
+  phat_RF_test <- predict(model_RF, newdata = test, type = "prob")[, 2]
+
+  #calculates test AUC of RF
+  pred_rocr_RF_test <- prediction(phat_RF_test, test$y)
+  auc_ROCR_RF_test <- performance(pred_rocr_RF_test, measure = "auc")
+  auc_container_RF_test[i] <- auc_ROCR_RF_test@y.values[[1]]
+  
+  #making a container with the current MDI
+  md <- model_RF$importance[,"MeanDecreaseGini"]
+  
+  #sums the MDI's
+  mean_var_imp[,1] <- mean_var_imp[,1] + md
+  
+  #sums all the confusion tables
+  oob_conf <- oob_conf + model_RF$confusion
+  
+  #calculates OOB AUC of RF
+  phat_RF_OOB <- predict(model_RF, type = "vote")[, 2]
+  pred_rocr_RF_OOB <- prediction(phat_RF_OOB, train$y)
+  auc_ROCR_RF_OOB <- performance(pred_rocr_RF_OOB, measure = "auc")
+  auc_container_RF_OOB[i] <- auc_ROCR_RF_OOB@y.values[[1]]
+}
+
+#1.
+
+#LPM
+#calculates the mean of the LPM AUCs 
+mean_auc_LPM <- mean(auc_container_LPM)
+
+#report the 95% C.I & standard deviation of the LPM AUCs 
+lower_CI_LPM <- quantile(auc_container_LPM, probs = 0.025)
+upper_CI_LPM <- quantile(auc_container_LPM, probs = 0.975)
+cat("LPM model test AUC:",
+    round(mean_auc_LPM, 3),"(", 
+    round(lower_CI_LPM, 3),"-",
+    round(upper_CI_LPM, 3),")\nstandard deviation: ",
+    sd(auc_container_LPM))
+
+#RF
+#calculates the mean of the RF AUCs 
+mean_auc_RF_test <- mean(auc_container_RF_test)
+
+#report the 95% C.I & standard deviation of the RF AUCs 
+lower_CI_RF <- quantile(auc_container_RF_test, probs = 0.025)
+upper_CI_RF <- quantile(auc_container_RF_test, probs = 0.975)
+cat("RF model test AUC:",
+    round(mean_auc_RF_test, 3),"(", 
+    round(lower_CI_RF, 3),"-",
+    round(upper_CI_RF, 3),")\nstandard deviation: ",
+    sd(auc_container_RF_test))
+
+#2.
+
+#making a vector with all the names of the predictors
+name_container <- names(md)
+
+#taking the mean of the sum of all the MDI's
+mean_var_imp[,1] <- mean_var_imp[,1]/n_runs
+
+#making a temporary matrix to keep the original intact
+temp <- matrix(data = mean_var_imp[,1], nrow = 16 , ncol = 1)
+
+#prints the top 6 predictors and their MDI's
+for (i in 1:6) {
+  #print the name of the ith biggest element
+  print(name_container[which.max(temp)])
+  #print the value of the ith biggest element
+  print(max(temp[,1]))
+  #sets the value of the ith biggest element from the matrix to 0 so it doesn't 
+  #get picked again
+  temp[which.max(temp),] <- 0
+}
+
+#3.
+
+#calculates the mean of the 100 confusion matrices
+oob_conf <- oob_conf / 100
+
+#4.
+
+mean_auc_RF_OOB <- mean(auc_container_RF_OOB)
+
+if (mean_auc_RF_test > mean_auc_RF_OOB) {
+  print("Average test AUC is greater than average OOB AUC.")
+} else if (mean_auc_RF_test < mean_auc_RF_OOB) {
+  print("Average OOB AUC is greater than average test AUC.")
+} else {
+  print("Average test AUC is equal to average OOB AUC.")
+}
+
+```
+
+```{r message=FALSE}
+#------------------------------------------------------------------------------
+#GBM
+rm(list = ls())
+library(gbm)
+library(ROCR)
+
+#import data
+df <- read.csv("C:\\Users\\justi\\OneDrive\\Documents\\ECON 3838\\bank.csv", sep=";")
+
+#make all char columns into factor columns
+df[sapply(df, is.character)] <- lapply(df[sapply(df, is.character)], as.factor)
+
+#change the yes and no to 1 and 0
+df$y <- ifelse(df$y == "yes", 1, 0)
+df$y = as.numeric(df$y)
+
+#define the tuning grid for the hyper parameters
+grid <- expand.grid(interaction.depth = c(2, 4, 6),
+                    shrinkage = c(0.01, 0.05, 0.1),
+                    n.trees = c(500, 1000, 1500))
+
+#initialize variables to store the best hyper parameters and their 
+#corresponding AUCs
+best_params <- NULL
+auc_container_GBM <- c()
+best_auc <- 0
+  
+#split train data test data
+ind <- sample(nrow(df), nrow(df), replace = TRUE)
+train <- df[ind,]
+test <- df[-ind,]
+
+#perform the grid search with cross-validation
+for (i in 1:nrow(grid)) {
+  #fit a GBM model with the current hyper parameters using cross-validation
+  model_GBM <- gbm(y ~ .,
+                   data = train, 
+                   distribution = "bernoulli",
+                   n.trees = grid$n.trees[i],
+                   interaction.depth = grid$interaction.depth[i],
+                   shrinkage = grid$shrinkage[i],
+                   cv.folds = 3)
+  
+  #predict probabilities for the test data
+  pred <- predict(model_GBM,
+                  newdata = test, 
+                  n.trees = model_GBM$best.iteration, 
+                  type = "response")
+  
+  #create prediction object for ROCR package
+  pred_obj <- prediction(pred, test$y)
+  
+  #calculate AUC
+  auc_container_GBM[i] <- as.numeric(performance(pred_obj, measure = "auc")@y.values)
+  
+  #update the best hyper parameters and corresponding AUC if the current AUC is better
+  if (auc_container_GBM[i] > best_auc) {
+    best_auc <- auc_container_GBM[i]
+    best_params <- grid[i, ]
+  }
+}
+
+#report findings
+cat("the best interaction.depth is", best_params[1,1],
+    "\nthe best shrinkage is", best_params[1,2],
+    "\nthe best n.trees is", best_params[1,3],
+    "\nthe AUC based on these tuned hyper parameters is", best_auc)
+
+#the number of loops
+n_loops <- 50
+
+#reset the container
+auc_container_GBM <- c()
+best_auc <- 0
+
+for (i in 1:n_loops) {
+  #split train data test data
+  ind <- sample(nrow(df), nrow(df), replace = TRUE)
+  train <- df[ind,]
+  test <- df[-ind,]
+  
+  #fit a GBM model with the current hyper parameters using cross-validation
+  model_GBM <- gbm(y ~ ., 
+                   data = train, 
+                   distribution = "bernoulli",
+                   n.trees = best_params[1,3], 
+                   interaction.depth = best_params[1,1],
+                   shrinkage = best_params[1,2], 
+                   cv.folds = 3)
+  
+  #predict probabilities for the test data
+  pred <- predict(model_GBM,
+                  newdata = test,
+                  n.trees = model_GBM$best.iteration,
+                  type = "response")
+  
+  #create prediction object for ROCR package
+  pred_obj <- prediction(pred, test$y)
+  
+  #calculate AUC
+  auc_container_GBM[i] <- as.numeric(performance(pred_obj, measure = "auc")@y.values)
+  
+    if (auc_container_GBM[i] > best_auc) {
+    best_model <- model_GBM
+  }
+}
+
+#calculate the mean and standard error of the test AUCs
+mean_auc <- mean(auc_container_GBM)
+se_auc <- sd(auc_container_GBM) / sqrt(n_loops)
+
+#print the results
+cat("list of all AUC's:", round(auc_container_GBM, 3),
+    "\nMean AUC:", round(mean_auc, 3),
+    "\nStandard error:", round(se_auc, 3))
+
+#makes a summary of the best model
+best_model_stats <- summary.gbm(best_model)
+
+#reports the top 6 predictors
+for (i in 1:6) {
+  cat("\n The number", i ,"predictor is", best_model_stats$var[i],
+      "with a relative influence of", best_model_stats$rel.inf[i])
+}
+```

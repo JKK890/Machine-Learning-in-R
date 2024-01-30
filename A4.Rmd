@@ -1,0 +1,141 @@
+---
+title: "A4"
+author: "Justin Kaiser"
+date: "2023-02-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+# load necessary libraries
+library(caret)
+library(ROCR)
+
+# load data
+filepath <- "https://quantdev.ssri.psu.edu/sites/qdev/files/student-mat.csv"
+data <- read.table(file=url(filepath),sep=";",header=TRUE)
+data = data[,-c(31,32)]
+# convert categorical columns to factor columns
+data$school <- as.factor(data$school)
+data$sex <- as.factor(data$sex)
+for (i in 4:23) {
+  data[,i] <- as.factor(data[,i])
+}
+levels(droplevels(data$Fedu))
+
+
+# LPM parameter initialization
+propTrain <- 0.8
+grid <- seq(0.40, 0.80, 0.02)
+best_thresholdLPM <- numeric(length = 10)
+best_accLPM <- numeric(length = 10)
+ACCLPM <- numeric(length = length(grid))
+
+# loop over 10 iterations
+for (i in 1:10) {
+  # split data into training and testing sets
+  train_index <- sample(nrow(data), floor(propTrain * nrow(data)))
+  train <- data[train_index, ]
+  test <- data[-train_index, ]
+  
+  # train LPM model
+  model <- lm(G3 ~ ., data = train)
+  levels(droplevels(test$Fedu))
+  
+  # loop over the grid
+  for (j in seq_along(grid)) {
+    # predict G3 values using LPM model and the current threshold
+    yhat_prob <- predict(model, newdata = test, type = "response")
+    yhat <- as.numeric(yhat_prob >= grid[j])
+    
+    # calculate accuracy and store it
+    ACCLPM[j] <- mean(yhat == test$G3)
+  }
+  
+  # find the index of the best threshold
+  best_index <- which.max(ACCLPM)
+  
+  # store the best threshold and accuracy
+  best_thresholdLPM[i] <- grid[best_index]
+  best_accLPM[i] <- ACCLPM[best_index]
+}
+
+# find the 3rd quartile of G3
+q3 <- quantile(data$G3, probs = 0.75)
+
+# create a new binary variable based on G3 score
+y <- ifelse(data$G3 > q3, 1, 0)
+
+# convert the new variable to factor
+y <- as.factor(y)
+
+# predict G3 values using LPM model and the best threshold
+yhat_prob <- predict(model, newdata = data, type = "response")
+
+# calculate AUC using ROCR package
+pred <- prediction(yhat_prob, y)
+
+# calculate the AUC
+auc <- performance(pred, "auc")@y.values[[1]]
+```
+
+
+```{r}
+# load necessary libraries
+library(caret)
+library(ROCR)
+
+# load data
+filepath <- "https://quantdev.ssri.psu.edu/sites/qdev/files/student-mat.csv"
+data <- read.table(file=url(filepath),sep=";",header=TRUE)
+data = data[,-c(31,32)]
+
+# convert categorical columns to factor columns
+data$school <- as.factor(data$school)
+data$sex <- as.factor(data$sex)
+for (i in 4:23) {
+  data[,i] <- as.factor(data[,i])
+}
+levels(droplevels(data$Fedu))
+
+# find the 3rd quartile of G3
+q3 <- quantile(data$G3, probs = 0.75)
+
+# create a new binary column based on G3 score
+data$y <- c(ifelse(data$G3 > q3, 1, 0))
+
+#set up the k values
+k <- seq(from = 1, to = 20, by = 1)
+propTrain <- 0.8
+meanAUC <- c()
+bestK <- c()
+
+#kNN
+for (i in 1:10) {
+  #resets every time
+  AUC <- c()
+  for (j in 1:length(k)) {
+    #set up our train and test data
+    train_index <- sample(nrow(data), floor(propTrain * nrow(data)))
+    train <- data[train_index, ]
+    test <- data[-train_index, ]
+    
+    #make a model and predict using model
+    model <- knn3(y ~ ., data = train, k = k[j])
+    phat <- predict(model, newdata = test, type = "prob")
+    
+    pred <- prediction(phat[,2], test$y)
+    aucPref <- performance(pred, measure = "auc")
+    AUC[j] <- aucPref@y.values[[1]]
+  }
+  #capture the mean of the AUC ideal values of k
+  meanAUC[i] <- mean(AUC)
+  bestK[i] <- k[which.max(AUC)]
+}
+meanAUC[which.max(meanAUC)]
+k[which.max(meanAUC)]
+```

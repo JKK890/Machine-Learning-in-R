@@ -1,0 +1,436 @@
+---
+title: "CP8"
+author: "Justin Kaiser"
+date: "2023-02-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+myocarde = read.table("http://freakonometrics.free.fr/myocarde.csv",head=TRUE, sep=";")
+str(myocarde)
+
+y <- ifelse(myocarde$PRONO == "SURVIE", 1, 0)
+
+p <- mean(y)
+
+#Function
+GI <- function(x){
+  G <- 2*p * (1 - p)
+
+  x1 <- myocarde$FRCAR
+  table(y,x1)
+  
+  pl <-mean(y[x1<=x])
+  GL <-  2*pl * (1 - pl)
+  
+  pr <-mean(y[x1>x])
+  GR <-  2*pr * (1 - pr)
+  
+  propL <- length(x1[x1<=x])/length(x1)
+  propR <- length(x1[x1>x])/length(x1)
+    
+  del <- G - (propL*GL + propR*GR)
+  
+  return(del)
+}
+  x1 <- myocarde$FRCAR
+
+xUnique <- sort(unique(x1))
+dels <- c()
+
+for(i in 1:(length(xUnique) - 1)){
+  dels[i] <- GI(xUnique[i])
+}
+
+max(dels)
+xUnique[which.max(dels)]
+
+
+```
+
+```{r}
+myocarde = read.table("http://freakonometrics.free.fr/myocarde.csv",head=TRUE, sep=";")
+str(myocarde)
+y <- ifelse(myocarde$PRONO == "SURVIE", 1, 0)
+G <- 2*p * (1 - p)
+p <- mean(y)
+
+
+GINEW <- function(x, variable){
+  pl <-mean(y[variable<=x])
+  GL <-  2*pl * (1 - pl)
+  
+  pr <-mean(y[variable>x])
+  GR <-  2*pr * (1 - pr)
+  
+  propL <- length(xmm[variable<=x])/length(variable)
+  propR <- length(xmm[variable>x])/length(variable)
+    
+  del <- G - (propL*GL + propR*GR)
+  return(del)
+}
+
+df <- myocarde[,1:7]
+bestDelta <- c()
+bestSplit <- c()
+
+for (i in ncol(df)) {
+  xmm <- sort(unique(df[,i]))
+  deltas <- c()
+  
+  for(j in 1:(length(xmm) - 1)){
+    deltas[j] <- GINEW(xmm[j],df[i])
+  }
+  
+  bestDelta[i] <- max(deltas)
+  bestSplit[i] <- xmm[which.max(deltas)]
+}
+max(bestDelta)
+names(myocarde[which.max(bestDelta)])
+
+
+#GIven up, see CP8 on BS
+```
+
+
+
+
+
+```{r}
+myocarde = read.table("http://freakonometrics.free.fr/myocarde.csv",head=TRUE, sep=";")
+str(myocarde)
+
+y <- ifelse(myocarde$PRONO == "SURVIE", 1, 0)
+
+
+
+G <- 2 * mean(y) * (1 - mean(y))
+
+x_1 <- myocarde$FRCAR
+
+GL <- 2 * mean(y[x_1 <= 60]) * (1 - mean(y[x_1 <= 60]))
+GR <- 2 * mean(y[x_1 > 60]) * (1 - mean(y[x_1 > 60]))
+pL <- length(x_1[x_1 <= 60]) / length(x_1)
+pR <- length(x_1[x_1 > 60]) / length(x_1) #Proportion of obs. on Right
+# How much did we improve G?
+delta <- G - (pL * GL + pR * GR)
+delta
+
+GI <- function(x){
+  G <- 2*mean(y)*(1-mean(y))
+  GL <- 2*mean(y[x_1 <= x])*(1-mean(y[x_1 <= x]))
+  GR <- 2*mean(y[x_1 > x])*(1-mean(y[x_1 > x]))
+  pL <- length(x_1[x_1 <= x])/length(x_1)
+  pR <- length(x_1[x_1 > x])/length(x_1) #Proportion of obs. on Right
+  del <- G - (pL*GL + pR*GR)
+  return(del)
+}
+
+xm <- sort(unique(x_1))
+
+delta <- c()
+
+for (i in 1:length(xm) - 1) {
+  delta[i] <- GI(xm[i])
+}
+
+GI <- function(x,x_1){
+  G <- 2*mean(y)*(1-mean(y))
+  GL <- 2*mean(y[x_1 <= x])*(1-mean(y[x_1 <= x]))
+  GR <- 2*mean(y[x_1 > x])*(1-mean(y[x_1 > x]))
+  pL <- length(x_1[x_1 <= x])/length(x_1)
+  pR <- length(x_1[x_1 > x])/length(x_1) #Proportion of obs. on Right
+  del <- G - (pL*GL + pR*GR)
+  return(del)
+  }
+
+df <- myocarde[, 1:7]
+split <- c()
+maxdelta <- c()
+for (j in 1:ncol(df)) {
+  xm <- sort(unique(df[,j]))
+  delta <- c()
+  for (i in 1:length(xm)-1) {
+    delta[i] <- GI(df[,j], xm[i])
+  }
+  maxdelta[j] <- max(delta)
+  split[j] <- xm[which.max(delta)]
+}
+
+max(maxdelta)
+names(myocarde[which.max(maxdelta)])
+round(split[which.max(maxdelta)],0)
+dm <- matrix(maxdelta, 7, 1)
+rownames(dm) <- c(names(myocarde[1:7]))
+
+dm <- dm[order(dm[,1]),]
+barplot(dm, horiz = TRUE, col = "darkgreen", xlim = c(0, 0.3),
+cex.names = 0.5, cex.axis = 0.8, main = "Variable Importance at the 1st Split")
+
+```
+
+
+```{r}
+# Let's pick FRCAR to start
+x_1 <- myocarde$FRCAR
+# Put x and y in table
+tab = table(y, x_1)
+tab
+## x_1
+## y 60 61 65 67 70 75 78 79 80 81 82 84 85 86 87 90 92 94 95 96 99 100 102 103
+## 0 1 0 1 0 1 1 0 1 4 0 0 0 1 0 2 2 2 1 3 0 0 1 1 1
+## 1 0 2 1 1 0 3 1 0 7 1 3 1 0 4 0 4 2 1 1 1 1 3 0 0
+## x_1
+## y 105 108 110 116 118 120 122 125
+## 0 1 0 2 1 1 1 0 0
+## 1 0 1 1 0 1 0 1 1
+# Let's pick an arbitrary x value, x = 60 to see if (GL + GR > GN)
+GL <- 2 * mean(y[x_1 <= 60]) * (1 - mean(y[x_1 <= 60]))
+GR <- 2 * mean(y[x_1 > 60]) * (1 - mean(y[x_1 > 60]))
+pL <- length(x_1[x_1 <= 60]) / length(x_1)
+pR <- length(x_1[x_1 > 60]) / length(x_1) #Proportion of obs. on Right
+# How much did we improve G?
+delta <- G - (pL * GL + pR * GR)
+delta
+## [1] 0.009998016
+GI <- function(x){
+G <- 2*mean(y)*(1-mean(y))
+GL <- 2*mean(y[x_1 <= x])*(1-mean(y[x_1 <= x]))
+GR <- 2*mean(y[x_1 > x])*(1-mean(y[x_1 > x]))
+pL <- length(x_1[x_1 <= x])/length(x_1)
+pR <- length(x_1[x_1 > x])/length(x_1) #Proportion of obs. on Right
+del <- G - (pL*GL + pR*GR)
+return(del)
+}
+# Let's test it for 60
+GI(61)
+## [1] 0.0004978782
+#container
+delta <- c()
+#loop
+for (i in 1:length(xm) - 1) {
+delta[i] <- GI(xm[i])
+}
+delta
+## [1] 9.998016e-03 4.978782e-04 1.082036e-05 1.041714e-03 8.855953e-05
+## [6] 7.363859e-04 2.295303e-03 2.546756e-04 1.142757e-03 2.551599e-03
+## [11] 9.862318e-03 1.329134e-02 8.257492e-03 2.402430e-02 1.160767e-02
+## [16] 1.634414e-02 1.352527e-02 1.229951e-02 3.109723e-03 5.692941e-03
+## [21] 9.212475e-03 1.919591e-02 1.244092e-02 6.882353e-03 2.747959e-03
+## [26] 6.282533e-03 1.547312e-03 1.082036e-05 4.978782e-04 9.671419e-03
+## [31] 4.766628e-03
+max(delta)
+## [1] 0.0240243
+xm[which.max(delta)]
+## [1] 86
+# Adjust our function a little: x is x, and value is the cutoff
+GI <- function(variable, value){
+G <- 2*mean(y)*(1-mean(y))
+GL <- 2*mean(y[variable <= value])*(1-mean(y[variable <= value]))
+GR <- 2*mean(y[variable > value])*(1-mean(y[variable > value]))
+pL <- length(variable[variable <= value])/length(variable)
+pR <- length(variable[variable > value])/length(variable)
+del = G - pL*GL - pR*GR
+return(del)
+}
+# The loop that applies GI on every x
+df <- myocarde[, 1:7]
+split <- c()
+maxdelta <- c()
+for (j in 1:ncol(df)) {
+xm <- sort(unique(df[,j]))
+delta <- c()
+for (i in 1:length(xm)-1) {
+delta[i] <- GI(df[,j], xm[i])
+}
+maxdelta[j] <- max(delta)
+split[j] <- xm[which.max(delta)]
+}
+# Finding the first feature and where to split in this feature
+max(maxdelta)
+## [1] 0.2832801
+names(myocarde[which.max(maxdelta)])
+## [1] "INSYS"
+round(split[which.max(maxdelta)],0) # round it to 0, b/c split it less/higher than x=18.7
+## [1] 19
+# Contribution of each feature
+dm <- matrix(maxdelta, 7, 1)
+rownames(dm) <- c(names(myocarde[1:7]))
+dm
+## [,1]
+## FRCAR 0.02402430
+## INCAR 0.26219024
+## INSYS 0.28328013
+## PRDIA 0.13184706
+## PAPUL 0.09890283
+## PVENT 0.04612125
+
+## REPUL 0.26790701
+# Variable importance
+dm <- dm[order(dm[,1]),]
+barplot(dm, horiz = TRUE, col = "darkgreen", xlim = c(0, 0.3),
+cex.names = 0.5, cex.axis = 0.8, main = "Variable Importance at the 1st Split")
+
+library(rpart)
+tree = rpart(PRONO ~., data = myocarde, method = "class")
+# Plot it
+library(rpart.plot) # You can use plot() but prp() is much better
+prp(tree,
+    type = 2,
+    extra = 1,
+    split.col = "red",
+    split.border.col = "blue",
+    box.col = "pink")
+
+# Variable Importance
+vi <- tree$variable.importance
+vi <- vi[order(vi)]
+barplot(vi/100, horiz = TRUE, col = "lightgreen",
+cex.names = 0.5, cex.axis = 0.8, main = "Variable Importance - rpart()")
+
+tree2 = rpart(PRONO ~., data = myocarde,
+control = rpart.control(minsplit = 2, minbucket = 1,
+cp = 0), method = "class")
+# Plot it with a different package now
+library(rattle)
+fancyRpartPlot(tree2, caption = NULL)
+```
+
+
+
+#part 2
+
+```{r}
+# load the data
+library(rpart)
+library(PASWR)
+data(titanic3)
+str(titanic3)
+
+titan <- rpart(survived ~ sex + age + pclass + sibsp + parch,
+                     data = titanic3, method = "class")
+
+prp(titan, type = 2, extra = 1, split.col = "red", split.border.col = "blue", box.col = "pink")
+
+plot(titan$variable.importance)
+
+library(ROCR)
+set.seed(1)
+ind <- sample(nrow(titanic3), nrow(titanic3)*0.7)
+train <- titanic3[ind,]
+val <- titanic3[-ind,]
+
+#Tree wit AUC
+titan <- rpart(survived ~ sex + age + pclass + sibsp + parch, data = train, method = "class")
+
+
+phat <- predict(titan, val, type = "prob")
+head(phat)
+
+#predictions
+pred_rocr <- prediction(phat[,2], val$survived)
+auc_ROCR <- performance(pred_rocr,measure = "auc")
+auc_ROCR@y.values[[1]]
+
+#ROC
+perf <- performance(pred_rocr, "tpr", "fpr")
+plot(perf, colorize = TRUE, lwd = 2)
+abline(a = 0,b = 1,col = "red")
+```
+
+```{r}
+#Imports
+library(PASWR)
+library(ROCR)
+library(rpart)
+source("JKfunctions")
+# Data
+remove(list = ls())
+data(titanic3)
+df <- titanic3
+
+# Containers
+cpopt <- c()
+AUCtest <- c()
+
+# Complexity Parameter (cp)
+cpgrid <- seq(from = 0.01, to = 0.05, by = 0.001)
+
+# Loop
+
+for (i in 1:50) {
+  MAUC <- c()
+
+  #Splitting the data
+  ind <- sample(nrow(df), 0.9*nrow(df))
+  modeld <- df[ind,]
+  test <- df[-ind,]
+  
+  for (j in 1:length(cpgrid)) {
+    AUC <- c()
+    
+    for (k in 1:10) {
+      #Making training & validation sets
+      ind <- unique(sample(nrow(modeld), nrow(modeld), replace = TRUE))
+      train <- modeld[ind,]
+      val <- modeld[-ind,]
+      
+      #Growing the tree as much as possible
+      model <- rpart(
+        survived ~ sex + age + pclass + sibsp + parch,
+        data = train,
+        method = "class",
+        control = rpart.control(
+          minsplit = 2,
+          minbucket = 1,
+          cp = 0
+        )
+      )
+      
+      #Prune the tree
+      pmodel <- prune(model, cp = cpgrid[j])
+      phat <- predict(pmodel, val, type = "prob")
+      
+      #AUC
+      pred_rocr <- prediction(phat[, 2], val$survived)
+      auc_ROCR <- performance(pred_rocr, measure = "auc")
+      AUC[k] <- auc_ROCR@y.values[[1]]
+    }
+    MAUC[j] <- mean(AUC)
+  }
+  #Final test
+  cp_opt <- cpgrid[which.max(MAUC)]
+  model <- rpart(
+        survived ~ sex + age + pclass + sibsp + parch,
+        data = train,
+        method = "class",
+        control = rpart.control(
+          minsplit = 2,
+          minbucket = 1,
+          cp = 0
+        )
+      )
+  
+  #Prune the tree
+  pmodel <- prune(model, cp = cp_opt)
+  phat <- predict(pmodel, test, type = "prob")
+  
+  #AUC
+  pred_rocr <- prediction(phat[, 2], test$survived)
+  auc_ROCR <- performance(pred_rocr, measure = "auc")
+  AUCtest[i] <- auc_ROCR@y.values[[1]]
+  
+}
+
+plot(AUCtest, col = "blue", ylim = c(0.60, 1.00))
+abline(a = mean(AUCtest), b = 0, col = "green", lwd = 3)
+abline(a = mean(AUCtest)-2*sd(AUCtest), b = 0, col = "magenta", lwd = 3)
+abline(a = mean(AUCtest)+2*sd(AUCtest), b = 0, col = "magenta", lwd = 3)
+
+
+
+```

@@ -1,0 +1,55 @@
+---
+title: "CP7"
+author: "Justin Kaiser"
+date: "2023-02-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dslabs)
+data("mnist_27")
+str(mnist_27)
+
+y10 = ifelse(mnist_27$train$y==7, 1, 0)
+train <- data.frame(mnist_27$train, y10)
+train <- train[, -1]
+y10 = ifelse(mnist_27$test$y==7, 1, 0)
+test <- data.frame(mnist_27$test, y10)
+test <- test[, -1]
+
+
+#BalTable <- table(train$y10)
+#BalTable[2]/sum(BalTable)
+
+fit <- lm(y10 ~ .,data = train)
+phat <- predict(fit, test)
+
+
+yhat <- ifelse(phat > 0.55, 1, 0)
+CT <- table(yhat,test$y10)
+accRate <- sum(diag(CT))/sum(CT)
+```
+
+```{r}
+#kNN
+library(caret)
+train2 <- mnist_27$train
+test2 <- mnist_27$test
+model2 <- knn3(y ~ x_1 + x_2, data = train2, k = 9)
+phat2 <- predict(model2, test2, type = "prob")
+head(phat2)
+
+yhat <- ifelse(phat2[,2] > .5, 7, 2)
+
+ConfTab <- table(yhat, test2$y)
+acc <- sum(diag(ConfTab))/sum(ConfTab)
+acc
+
+```
+
+

@@ -1,0 +1,255 @@
+---
+title: "A2"
+author: "Justin Kaiser"
+date: "2023-01-30"
+output:   
+  html_document:
+    code_folding: "hide"
+    toc_collapsed: yes
+    toc_depth: 3
+    latex_engine: xelatex
+urlcolor: lumen
+subtitle: '**SMU - Applied Machine Learning**'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+#1. Data
+part 1 & 2
+```{r}
+#1 & #2
+autompg = read.table("http://archive.ics.uci.edu/ml/machine-learning-databases/auto-mpg/auto-mpg.data",
+quote = "\"", comment.char = "", stringsAsFactors = FALSE)
+colnames(autompg)
+## [1] "V1" "V2" "V3" "V4" "V5" "V6" "V7" "V8" "V9"
+str(autompg)
+## 'data.frame': 398 obs. of 9 variables:
+## $ V1: num 18 15 18 16 17 15 14 14 14 15 ...
+## $ V2: int 8 8 8 8 8 8 8 8 8 8 ...
+## $ V3: num 307 350 318 304 302 429 454 440 455 390 ...
+## $ V4: chr "130.0" "165.0" "150.0" "150.0" ...
+## $ V5: num 3504 3693 3436 3433 3449 ...
+## $ V6: num 12 11.5 11 12 10.5 10 9 8.5 10 8.5 ...
+## $ V7: int 70 70 70 70 70 70 70 70 70 70 ...
+## $ V8: int 1 1 1 1 1 1 1 1 1 1 ...
+## $ V9: chr "chevrolet chevelle malibu" "buick skylark 320" "plymouth satellite" "amc rebel sst" ...
+df <- autompg
+```
+
+part 3
+```{r}
+#3
+# assigns names to each column in the data frame
+colnames(df)[1] ="mpg"
+colnames(df)[2] ="cylinders"
+colnames(df)[3] ="displacement"
+colnames(df)[4] ="horsepower"
+colnames(df)[5] ="weight"
+colnames(df)[6] ="acceleration"
+colnames(df)[7] ="model year"
+colnames(df)[8] ="origin"
+colnames(df)[9] ="car name"
+```
+
+part 4
+```{r}
+#4
+# prints the class of each column
+class(df$mpg)
+class(df$cylinders)
+class(df$displacement)
+class(df$horsepower)
+class(df$weight)
+class(df$acceleration)
+class(df$`model year`)
+class(df$origin)
+class(df$`car name`)
+
+# changes the class of the horsepower from character to numeric
+df$horsepower = as.numeric(as.character(df$horsepower))
+# changes the class of the following from integer to numeric
+df$cylinders = as.numeric(as.integer(df$cylinders))
+df$`model year` = as.numeric(as.integer(df$`model year`))
+df$origin = as.numeric(as.integer(df$origin))
+
+```
+
+part 5
+```{r}
+#5
+# show indexes of NA's
+print(which(is.na(df)))
+#returns the amount of NA's
+sum(is.na(df))
+```
+
+part 6
+```{r}
+#6
+# Makes a matrix and for every NA that it finds it adds 1 to the 
+# number below that columns name
+A <- is.na(df)
+colSums(A)
+```
+
+part 7
+```{r}
+#7
+print(mean(df$horsepower,na.rm=TRUE))
+```
+
+part 8
+```{r}
+#8
+ind <- which(is.na(df),arr.ind = TRUE)
+```
+
+
+part 9a
+```{r}
+#9 a)
+df2 <- df
+ms <- aggregate(df$horsepower, by=list(df$origin), FUN = mean, na.rm = TRUE)
+for(i in 1:nrow(ind)){
+  indRow <- ind[i,1]
+  originVal <- df2[indRow, 8]
+  condMean <- ms[ms[,1] == originVal, 2]
+  df2[indRow, 4] <- condMean
+}
+```
+
+part 9b
+```{r}
+#9 b)
+dfNoNA <- df[-ind[1:nrow(ind),1],]
+dim(dfNoNA)
+
+```
+#2. Plots and Descriptives
+part 1
+```{r}
+#1
+par(mfcol = c(1,3))
+
+#Plot mpg vs horsepower
+plot(df$mpg,df$horsepower,
+              col = "darkcyan",
+              main = "MPG vs Horsepower",
+              xlab = "MPG",
+              ylab = "Horsepower")
+#mpg vs displacement 
+plot(df$mpg,df$displacement,
+              col = "seagreen3",
+              main = "MPG vs Displacement",
+              xlab = "MPG",
+              ylab = "Displacement")
+#mpg vs acceleration
+plot(df$mpg,df$acceleration,
+              col = "aquamarine2",
+              main = "MPG vs Acceleration",
+              xlab = "MPG",
+              ylab = "Acceleration")
+
+```
+part 2
+```{r}
+#2
+par(mfcol=c(3,3))
+#Plot mpg vs horsepower
+plot(df$mpg,df$horsepower,
+              col = "darkcyan",
+              main = "MPG vs Horsepower",
+              xlab = "MPG",
+              ylab = "Horsepower")
+#mpg vs displacement 
+plot(df$mpg,df$displacement,
+              col = "seagreen3",
+              main = "MPG vs Displacement",
+              xlab = "MPG",
+              ylab = "Displacement")
+#mpg vs acceleration
+plot(df$mpg,df$acceleration,
+              col = "aquamarine2",
+              main = "MPG vs Acceleration",
+              xlab = "MPG",
+              ylab = "Acceleration")
+#Plot mpg vs Cylinders
+plot(df$mpg,df$cylinders,
+              col = "darkcyan",
+              main = "MPG vs Cylinders",
+              xlab = "MPG",
+              ylab = "Cylinders")
+#mpg vs Weight 
+plot2 <- plot(df$mpg,df$weight,
+              col = "seagreen3",
+              main = "MPG vs Weight",
+              xlab = "MPG",
+              ylab = "Weight")
+#mpg vs Origin
+plot1 <- plot(df$mpg,df$origin,
+              col = "aquamarine2",
+              main = "MPG vs Origin",
+              xlab = "MPG",
+              ylab = "Origin")
+```
+part 3
+```{r}
+#3
+library(corrplot)
+dfData <- df[,-9]
+A <- matrix(1,nrow = 8,ncol = 8)
+for(i in 1:ncol(dfData)){
+  for (j in 1:ncol(dfData)) {
+      A[i,j] <- cor(df[,i],df[,j], use ="complete.obs")
+  }
+}
+corrplot(A)
+```
+
+3. lm() and training RMSPE
+part 1
+```{r}
+dfComp <- df[complete.cases(df),]
+model1 <-lm(mpg ~ ., data=dfComp) 
+trainingRMSPE <- sqrt(mean((dfComp$mpg - predict(model1))/dfComp$mpg)^2)
+```
+
+
+4. Prediction accuracy
+part 1
+```{r}
+#1
+n <- nrow(dfComp)
+ind <- sample(n, n, replace = FALSE)
+dfShuffle <- dfComp[ind, ]
+k = 10
+nslice = floor(n/k)
+test <- dfShuffle[1:(3*nslice), ] #30% of df
+train <- dfShuffle[(3*nslice+1):n, ] #70% of df
+```
+
+part 2
+```{r}
+#2
+model2 <- lm(mpg ~ ., data=train) 
+rmspetest <- sqrt(mean((test$mpg - predict(model2))/test$mpg)^2)
+
+```
+part 3
+```{r}
+#3
+testValues <- c()
+
+for (i in 1:1000) {
+  ind <- sample(n, n, replace = FALSE)
+  dfShuffle <- df[ind, ]
+  test <- dfShuffle[1:(3*nslice), ] #30% of df
+
+  testValues[i] <- sqrt(mean((test$mpg - predict(model2))/test$mpg)^2)
+}
+plot(testValues, col = "blue")
+
+```

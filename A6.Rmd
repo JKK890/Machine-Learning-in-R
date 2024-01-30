@@ -1,0 +1,236 @@
+---
+title: "A6"
+author: "Justin Kaiser"
+date: "2023-03-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, echo = TRUE)
+```
+
+```{r}
+#data init.
+library(randomForest)
+library(rpart)
+library(ROCR)
+library(RBootcamp)
+library(DataExplorer)
+introduce(ames)
+df <- ames
+
+#find the column indices for the factor variables
+factorCols <- c(1,2,5:18,21:25,27:33,35,39:42,53,55,57:59,62:64,71:73,77,78)
+
+#loop over the factor columns and clean each factor variable
+for(i in 1:length(factorCols)){
+  myTable <- table(df[,factorCols[i]])
+  
+  #subset myTable to keep only factors with at least 10 occurrences
+  myTable <- myTable[myTable >= 10]
+  
+  #replace the original column with the cleaned one
+  col_name <- names(df)[factorCols[i]]
+  df[,col_name] <- ifelse(df[,col_name] %in% names(myTable), df[,col_name], NA)
+
+}
+
+#get rid of all NA's that were created in the above for loop
+df <- na.omit(df)
+
+#calculates the 3rd quartile of "Sale_Price"
+q75 <- quantile(df$Sale_Price, 0.75)
+
+#create a new column called "expensive" in df
+df$expensive <- ifelse(df$Sale_Price > q75, 1, 0)
+
+# Split data into training and test sets for bagging
+train_idx <- sample(nrow(df), round(0.9 * nrow(df)))
+train <- df[train_idx, ]
+test <- df[-train_idx, ]
+
+#variable, container & matrix initialization
+B = 100
+p = ncol(train) - 1
+aucContainerCART <- c()
+aucContainerBAG <- c()
+aucContainerRF <- c()
+aucContainerLPM <- c()
+RMSPEContainerCART <- c()
+RMSPEContainerBAG <- c()
+RMSPEContainerLPM <- c()
+phatBAG <- matrix(0, B, nrow(test))
+
+#Bagging
+for(i in 1:B){  
+  #set seed so we use the same splits throughout the program
+  set.seed(i)
+  
+  #split data using boot strapping
+  idx <- sample(nrow(train), nrow(train), replace = TRUE)
+  dt <- train[idx, ]
+ 
+  #make the model
+  modelBAG <- rpart(expensive ~., cp = 0, data = dt, method = "class") 
+  
+  #predict the model
+  phatBAG[i,] <- predict(modelBAG, test, type = "prob")[, 2]
+  
+  #calculate the average of the predictions
+  phat_f <- colMeans(phatBAG)
+  
+  #calculate the AUC
+  predRocr <- prediction(phat_f, test$expensive)
+  aucRocr <- performance(predRocr, measure = "auc")
+  aucContainerBAG[i] <- aucRocr@y.values[[1]]
+  
+  yhatBAG <- predict(modelBAG, data = test)
+  RMSPEContainerBAG[i] <- sqrt(mean((test$expensive - yhatBAG)^2))
+}
+
+#function that calculates the AUC for LPM, & RF
+calcAUC <- function(model){
+  phat <- predict(model, newdata = testBoot, type = "response")
+  predRocr <- prediction(phat, testBoot$expensive)
+  aucRocr <- performance(predRocr, measure = "auc")
+  return (aucRocr@y.values[[1]])
+}
+
+#function that calculates the AUC for CART
+CARTcalcAUC <- function(model){
+  phat <- predict(model, newdata = testBoot)
+  predRocr <- prediction(phat, testBoot$expensive)
+  aucRocr <- performance(predRocr, measure = "auc")
+  return (aucRocr@y.values[[1]])
+}
+
+#function that calculates the RMSPE for LPM, RF, & CART
+calcRMSPE <- function(model){
+  yhat <- predict(model, data = testBoot)
+  return (sqrt(mean((testBoot$expensive - yhat)^2)))
+}
+  
+#LPM
+for (i in 1:100) {
+  #set seed so we use the same splits throughout the program
+  set.seed(i)
+  
+  #splitting the data
+  ind <- sample(nrow(df), nrow(df), replace = TRUE)
+  trainBoot <- df[ind, ]
+  testBoot <- df[-ind, ]
+
+  #modeling
+  modelLPM <- glm(expensive ~ ., data = trainBoot, family = binomial())
+  
+  #function call that predicts phats & calculates the AUC
+  aucContainerLPM[i] <- calcAUC(modelLPM)
+  
+  #function call that predicts yhats & calculates the RMSPE
+  RMSPEContainerLPM[i] <- calcRMSPE(modelLPM)
+}
+
+#RF
+for (i in 1:100) {
+  #set seed so we use the same splits throughout the program
+  set.seed(i)
+  
+  #splitting the data
+  ind <- sample(nrow(df), nrow(df), replace = TRUE)
+  trainBoot <- df[ind, ]
+  testBoot <- df[-ind, ]
+
+  #modeling
+  modelRF <- randomForest(expensive ~., ntree = B, data = trainBoot)
+  
+  #function call that predicts phats & calulates the AUC
+  aucContainerRF[i] <- calcAUC(modelRF)
+}
+
+#CART
+for (i in 1:100) {
+  #set seed so we use the same splits throughout the program
+  set.seed(i)
+  
+  #splitting the data
+  ind <- sample(nrow(df), nrow(df), replace = TRUE)
+  trainBoot <- df[ind, ]
+  testBoot <- df[-ind, ]
+
+  #modeling
+  modelCART <- rpart(expensive ~., data = trainBoot)  
+  
+  #function call that predicts phats & calulates the AUC
+  aucContainerCART[i] <- CARTcalcAUC(modelCART)
+
+  #function call that predicts yhats & calculates the RMSPE
+  RMSPEContainerCART[i] <- calcRMSPE(modelCART)
+}
+  
+#mean & sd calculations
+mean(aucContainerCART)
+mean(aucContainerBAG)
+mean(aucContainerRF)
+mean(aucContainerLPM)
+sd(aucContainerCART)
+sd(aucContainerBAG)
+sd(aucContainerRF)
+sd(aucContainerLPM)
+
+mean(RMSPEContainerCART)
+mean(RMSPEContainerBAG)
+mean(RMSPEContainerLPM)
+sd(RMSPEContainerCART)
+sd(RMSPEContainerBAG)
+sd(RMSPEContainerLPM)
+
+#plots data
+hist(aucContainerCART, main = "Histogram of AUC values given by CART",
+     xlab = "AUC",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(aucContainerCART), col = "blue", lwd = 2, lty = 2)
+
+hist(aucContainerBAG, main = "Histogram of AUC values given by Bagging",
+     xlab = "AUC",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(aucContainerBAG), col = "blue", lwd = 2, lty = 2)
+
+hist(aucContainerRF, main = "Histogram of AUC values given by Random Forest",
+     xlab = "AUC",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(aucContainerRF), col = "blue", lwd = 2, lty = 2)
+
+hist(aucContainerLPM, main = "Histogram of AUC values given by LPM",
+     xlab = "AUC",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(aucContainerLPM), col = "blue", lwd = 2, lty = 2)
+
+hist(RMSPEContainerCART, main = "Histogram of RMSPE values given by CART",
+     xlab = "RMSPE",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(RMSPEContainerCART), col = "blue", lwd = 2, lty = 2)
+
+hist(RMSPEContainerBAG, main = "Histogram of RMSPE values given by Bagging",
+     xlab = "RMSPE",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(RMSPEContainerBAG), col = "blue", lwd = 2, lty = 2)
+
+hist(RMSPEContainerLPM, main = "Histogram of RMSPE values given by LPM",
+     xlab = "RMSPE",
+     ylab = "Frequency",
+     col = "aquamarine",
+     border = "white")
+abline(v = mean(RMSPEContainerLPM), col = "blue", lwd = 2, lty = 2)
+```
